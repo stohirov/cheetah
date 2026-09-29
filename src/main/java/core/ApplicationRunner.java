@@ -4,6 +4,7 @@ import annotations.Component;
 import annotations.Controller;
 import config.Config;
 import core.context.ApplicationContext;
+import core.context.RequestScopeHandler;
 import core.error.ErrorHandlingHandler;
 import core.error.ExceptionHandlers;
 import core.filter.AccessLogFilter;
@@ -65,7 +66,8 @@ public final class ApplicationRunner {
           config.get(STATIC_ROOT_KEY, "static"), router);
       Handler routes = new ErrorHandlingHandler(resources, exceptionHandlers);
       Handler filtered = new FilteringHandler(createFilters(context, config), routes);
-      Handler handler = new ErrorHandlingHandler(filtered, exceptionHandlers);
+      Handler handler = new RequestScopeHandler(
+          new ErrorHandlingHandler(filtered, exceptionHandlers));
 
       CheetahServer server = new CheetahServer(config.server(), handler);
       server.start();
@@ -124,8 +126,8 @@ public final class ApplicationRunner {
   private static Router createRouter(ApplicationContext context) {
     Router router = new Router();
 
-    for (Object controller : context.getBeansWithAnnotation(Controller.class)) {
-      router.register(controller);
+    for (Class<?> type : context.typesWithAnnotation(Controller.class)) {
+      router.register(type, context.beanSupplier(type));
     }
 
     for (Route route : router.routes()) {
@@ -152,8 +154,8 @@ public final class ApplicationRunner {
   private static ExceptionHandlers createExceptionHandlers(ApplicationContext context) {
     ExceptionHandlers exceptionHandlers = new ExceptionHandlers();
 
-    for (Object bean : context.getBeansOfType(Object.class)) {
-      exceptionHandlers.register(bean);
+    for (Class<?> type : context.componentTypes()) {
+      exceptionHandlers.register(type, context.beanSupplier(type));
     }
 
     return exceptionHandlers;

@@ -20,7 +20,8 @@ class ClassScannerTest {
         .map(Class::getName)
         .toList();
 
-    assertEquals(List.of("sampleapp.api.GreetingController"), names);
+    assertEquals(List.of("sampleapp.api.GreetingController",
+        "sampleapp.api.RequestCounterController"), names);
   }
 
   @Test

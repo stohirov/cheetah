@@ -8,6 +8,7 @@ import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public final class Route {
 
@@ -16,12 +17,12 @@ public final class Route {
   private final String consumes;
   private final String produces;
   private final HttpStatus status;
-  private final Object controller;
+  private final Supplier<?> controller;
   private final Method method;
   private final List<ArgumentBinder> binders;
 
   Route(HttpMethod httpMethod, PathPattern pattern, String consumes, String produces,
-      HttpStatus status, Object controller, Method method) {
+      HttpStatus status, Supplier<?> controller, Method method) {
     this.httpMethod = httpMethod;
     this.pattern = pattern;
     this.consumes = consumes;
@@ -65,7 +66,7 @@ public final class Route {
       arguments[i] = binders.get(i).bind(request, pathVariables);
     }
 
-    Object result = ResponseConverter.invoke(method, controller, arguments);
+    Object result = ResponseConverter.invoke(method, controller.get(), arguments);
 
     return ResponseConverter.convert(result, status, produces);
   }

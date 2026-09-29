@@ -1,6 +1,8 @@
 package core;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -27,6 +29,12 @@ class ApplicationRunnerTest {
       assertEquals(404, hidden.statusCode());
       assertEquals(Optional.of("Cheetah"), greeting.headers().firstValue("X-Powered-By"));
       assertEquals(Optional.of("Cheetah"), hidden.headers().firstValue("X-Powered-By"));
+
+      String first = get(server, "/instance").body();
+      String second = get(server, "/instance").body();
+
+      assertTrue(first.endsWith(":/instance"));
+      assertNotEquals(first, second);
     }
   }
 

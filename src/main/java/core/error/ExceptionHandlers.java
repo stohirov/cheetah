@@ -12,13 +12,18 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 public class ExceptionHandlers {
 
   private final List<HandlerMethod> handlers = new ArrayList<>();
 
   public ExceptionHandlers register(Object bean) {
-    List<Method> methods = Arrays.stream(bean.getClass().getDeclaredMethods())
+    return register(bean.getClass(), () -> bean);
+  }
+
+  public ExceptionHandlers register(Class<?> type, Supplier<?> bean) {
+    List<Method> methods = Arrays.stream(type.getDeclaredMethods())
         .filter(method -> method.isAnnotationPresent(ExceptionHandler.class))
         .sorted(Comparator.comparing(Method::getName))
         .toList();
@@ -105,7 +110,7 @@ public class ExceptionHandlers {
     return Integer.MAX_VALUE;
   }
 
-  private record HandlerMethod(Object bean, Method method,
+  private record HandlerMethod(Supplier<?> bean, Method method,
       List<Class<? extends Throwable>> types, HttpStatus status) {
 
     HttpResponse invoke(Exception exception, HttpRequest request) throws Exception {
@@ -113,7 +118,7 @@ public class ExceptionHandlers {
           .map(parameter -> parameter.getType() == HttpRequest.class ? request : exception)
           .toArray();
 
-      Object result = ResponseConverter.invoke(method, bean, arguments);
+      Object result = ResponseConverter.invoke(method, bean.get(), arguments);
 
       return ResponseConverter.convert(result, status, "");
     }

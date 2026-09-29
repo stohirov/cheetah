@@ -1,8 +1,10 @@
 package core.context;
 
+import annotations.RequestScoped;
 import annotations.Value;
 import config.Config;
 import convert.StringConverter;
+import http.HttpRequest;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -16,13 +18,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class ApplicationContext {
 
   private final Config config;
   private final List<Class<?>> componentTypes;
-  private final Map<Class<?>, Object> instances = new HashMap<>();
+  private final Map<Class<?>, Object> singletons = new HashMap<>();
   private final Set<Class<?>> creating = new LinkedHashSet<>();
 
   public ApplicationContext(Config config, Collection<Class<?>> componentTypes) {
@@ -32,12 +35,20 @@ public class ApplicationContext {
 
   public synchronized void refresh() {
     for (Class<?> type : componentTypes) {
-      instance(type);
+      if (isRequestScoped(type)) {
+        verifyDependencies(type);
+      } else {
+        instance(type);
+      }
     }
   }
 
   public Config config() {
     return config;
+  }
+
+  public static boolean isRequestScoped(Class<?> type) {
+    return type.isAnnotationPresent(RequestScoped.class);
   }
 
   public synchronized <T> T getBean(Class<T> type) {
@@ -47,15 +58,29 @@ public class ApplicationContext {
   public synchronized <T> List<T> getBeansOfType(Class<T> type) {
     return componentTypes.stream()
         .filter(type::isAssignableFrom)
+        .filter(candidate -> !isRequestScoped(candidate))
         .map(candidate -> type.cast(instance(candidate)))
         .toList();
   }
 
-  public synchronized List<Object> getBeansWithAnnotation(Class<? extends Annotation> annotation) {
+  public List<Class<?>> typesWithAnnotation(Class<? extends Annotation> annotation) {
     return componentTypes.stream()
         .filter(candidate -> candidate.isAnnotationPresent(annotation))
-        .map(this::instance)
         .toList();
+  }
+
+  public List<Class<?>> componentTypes() {
+    return componentTypes;
+  }
+
+  public synchronized Supplier<Object> beanSupplier(Class<?> type) {
+    if (isRequestScoped(type)) {
+      return () -> getBean(type);
+    }
+
+    Object singleton = instance(type);
+
+    return () -> singleton;
   }
 
   private Class<?> resolve(Class<?> type) {
@@ -74,11 +99,33 @@ public class ApplicationContext {
   }
 
   private Object instance(Class<?> type) {
-    Object existing = instances.get(type);
+    if (!isRequestScoped(type)) {
+      Object existing = singletons.get(type);
+      if (existing != null) {
+        return existing;
+      }
+
+      Object created = createTracked(type);
+      singletons.put(type, created);
+
+      return created;
+    }
+
+    RequestContext request = RequestContext.find().orElseThrow(() -> new BeanException(
+        type.getSimpleName() + " is request scoped but no request is active"));
+
+    Object existing = request.bean(type);
     if (existing != null) {
       return existing;
     }
 
+    Object created = createTracked(type);
+    request.putBean(type, created);
+
+    return created;
+  }
+
+  private Object createTracked(Class<?> type) {
     if (!creating.add(type)) {
       String chain = creating.stream()
           .map(Class::getSimpleName)
@@ -88,10 +135,7 @@ public class ApplicationContext {
     }
 
     try {
-      Object created = create(type);
-      instances.put(type, created);
-
-      return created;
+      return create(type);
     } finally {
       creating.remove(type);
     }
@@ -115,6 +159,27 @@ public class ApplicationContext {
     } catch (ReflectiveOperationException e) {
       throw new BeanException("Cannot instantiate " + type.getName(), e);
     }
+  }
+
+  private void verifyDependencies(Class<?> type) {
+    for (Parameter parameter : selectConstructor(type).getParameters()) {
+      Value value = parameter.getAnnotation(Value.class);
+      if (value != null) {
+        resolveValue(value.value(), parameter.getType(), type);
+        continue;
+      }
+
+      Class<?> dependency = parameter.getType();
+      if (dependency == Provider.class || dependency == List.class) {
+        typeArgument(parameter, type);
+      } else if (!isBuiltIn(dependency)) {
+        resolve(dependency);
+      }
+    }
+  }
+
+  private static boolean isBuiltIn(Class<?> type) {
+    return type == Config.class || type == ApplicationContext.class || type == HttpRequest.class;
   }
 
   private static Constructor<?> selectConstructor(Class<?> type) {
@@ -145,11 +210,36 @@ public class ApplicationContext {
       return this;
     }
 
-    if (type == List.class) {
-      return getBeansOfType(listElementType(parameter, owner));
+    if (type == HttpRequest.class) {
+      requireRequestScoped(owner, "HttpRequest");
+
+      return RequestContext.current().request();
     }
 
-    return instance(resolve(type));
+    if (type == List.class) {
+      return getBeansOfType(typeArgument(parameter, owner));
+    }
+
+    if (type == Provider.class) {
+      Class<?> provided = typeArgument(parameter, owner);
+
+      return (Provider<Object>) () -> getBean(provided);
+    }
+
+    Class<?> dependency = resolve(type);
+    if (isRequestScoped(dependency)) {
+      requireRequestScoped(owner, dependency.getSimpleName()
+          + " (inject Provider<" + type.getSimpleName() + "> instead)");
+    }
+
+    return instance(dependency);
+  }
+
+  private static void requireRequestScoped(Class<?> owner, String dependency) {
+    if (!isRequestScoped(owner)) {
+      throw new BeanException("Singleton " + owner.getSimpleName()
+          + " cannot depend on request-scoped " + dependency);
+    }
   }
 
   private Object resolveValue(String expression, Class<?> type, Class<?> owner) {
@@ -172,14 +262,14 @@ public class ApplicationContext {
     }
   }
 
-  private static Class<?> listElementType(Parameter parameter, Class<?> owner) {
+  private static Class<?> typeArgument(Parameter parameter, Class<?> owner) {
     if (parameter.getParameterizedType() instanceof ParameterizedType parameterized
         && parameterized.getActualTypeArguments()[0] instanceof Class<?> element) {
       return element;
     }
 
-    throw new BeanException("List parameters of " + owner.getSimpleName()
-        + " need a concrete element type");
+    throw new BeanException("Generic parameters of " + owner.getSimpleName()
+        + " need a concrete type argument");
   }
 
 }

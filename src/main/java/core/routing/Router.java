@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Supplier;
 
 public class Router implements Handler {
 
@@ -36,7 +37,10 @@ public class Router implements Handler {
   private final List<Route> routes = new ArrayList<>();
 
   public Router register(Object controller) {
-    Class<?> type = controller.getClass();
+    return register(controller.getClass(), () -> controller);
+  }
+
+  public Router register(Class<?> type, Supplier<?> controller) {
     Controller annotation = type.getAnnotation(Controller.class);
     String prefix = annotation == null ? "" : annotation.path();
 
