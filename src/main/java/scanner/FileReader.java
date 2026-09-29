@@ -1,10 +1,10 @@
 package scanner;
 
-import java.io.FileInputStream;
-import java.util.List;
+import java.io.IOException;
+import java.io.InputStream;
 
 public interface FileReader {
 
-  void readFile(FileInputStream file, List<String> environments);
+  void readFile(InputStream input, String environment) throws IOException;
 
 }
