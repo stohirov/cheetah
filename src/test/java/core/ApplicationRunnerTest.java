@@ -7,6 +7,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import sampleapp.SampleApp;
 
@@ -24,6 +25,8 @@ class ApplicationRunnerTest {
       assertEquals(200, greeting.statusCode());
       assertEquals("{\"message\":\"Salom, Cheetah\"}", greeting.body());
       assertEquals(404, hidden.statusCode());
+      assertEquals(Optional.of("Cheetah"), greeting.headers().firstValue("X-Powered-By"));
+      assertEquals(Optional.of("Cheetah"), hidden.headers().firstValue("X-Powered-By"));
     }
   }
 

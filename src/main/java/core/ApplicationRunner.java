@@ -6,14 +6,19 @@ import config.Config;
 import core.context.ApplicationContext;
 import core.error.ErrorHandlingHandler;
 import core.error.ExceptionHandlers;
+import core.filter.AccessLogFilter;
+import core.filter.Filter;
+import core.filter.FilteringHandler;
 import core.handler.Handler;
 import core.routing.Route;
 import core.routing.Router;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -29,6 +34,7 @@ public final class ApplicationRunner {
   private static final Logger LOGGER = Logger.getLogger(ApplicationRunner.class.getName());
   private static final String ENV_ARGUMENT = "env";
   private static final String CONFIG_DIR_ARGUMENT = "config-dir";
+  private static final String ACCESS_LOG_KEY = "server.access-log";
 
   private ApplicationRunner() {
   }
@@ -50,7 +56,9 @@ public final class ApplicationRunner {
       Router router = createRouter(context);
       ExceptionHandlers exceptionHandlers = createExceptionHandlers(context);
 
-      Handler handler = new ErrorHandlingHandler(router, exceptionHandlers);
+      Handler routes = new ErrorHandlingHandler(router, exceptionHandlers);
+      Handler filtered = new FilteringHandler(createFilters(context, config), routes);
+      Handler handler = new ErrorHandlingHandler(filtered, exceptionHandlers);
 
       CheetahServer server = new CheetahServer(config.server(), handler);
       server.start();
@@ -118,6 +126,16 @@ public final class ApplicationRunner {
     }
 
     return router;
+  }
+
+  private static List<Filter> createFilters(ApplicationContext context, Config config) {
+    List<Filter> filters = new ArrayList<>(context.getBeansOfType(Filter.class));
+
+    if (Boolean.parseBoolean(config.get(ACCESS_LOG_KEY, "false"))) {
+      filters.add(new AccessLogFilter());
+    }
+
+    return filters;
   }
 
   private static ExceptionHandlers createExceptionHandlers(ApplicationContext context) {
