@@ -23,10 +23,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import validation.ConstraintViolationException;
+import validation.Max;
+import validation.Min;
+import validation.NotBlank;
+import validation.Violation;
 
 class RouterTest {
 
   record Item(long id, String name) {
+  }
+
+  record NewItem(@NotBlank String name, @Min(1) int quantity) {
   }
 
   @Controller(path = "/items")
@@ -60,6 +68,11 @@ class RouterTest {
     Item rename(@PathVariable long id, @ReqHeader("X-Name") String name,
         @ReqHeader(value = "X-Tag", required = false) String tag) {
       return new Item(id, tag == null ? name : name + "#" + tag);
+    }
+
+    @PostMethod(path = "/validated")
+    String validated(@ReqBody NewItem item, @ReqParam @Max(10) int priority) {
+      return item.name();
     }
 
     @GetMethod(path = "/preferences")
@@ -202,6 +215,23 @@ class RouterTest {
     assertEquals(HttpStatus.ACCEPTED, renamed.status());
     assertEquals("{\"id\":4,\"name\":\"pen#blue\"}", body(renamed));
     assertEquals(HttpStatus.CREATED, copied.status());
+  }
+
+  @Test
+  void validatesBodiesAndParameters() throws Exception {
+    ConstraintViolationException exception = assertThrows(ConstraintViolationException.class,
+        () -> router.handle(request(HttpMethod.POST, "/items/validated",
+            Map.of("priority", List.of("11")), Map.of(), "{\"name\":\"\",\"quantity\":0}")));
+
+    assertEquals(List.of(
+        new Violation("name", "must not be blank"),
+        new Violation("quantity", "must be greater than or equal to 1"),
+        new Violation("priority", "must be less than or equal to 10")), exception.violations());
+
+    HttpResponse valid = router.handle(request(HttpMethod.POST, "/items/validated",
+        Map.of("priority", List.of("3")), Map.of(), "{\"name\":\"pen\",\"quantity\":2}"));
+
+    assertEquals("pen", body(valid));
   }
 
   @Test

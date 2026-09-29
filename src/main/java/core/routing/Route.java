@@ -5,10 +5,13 @@ import http.HttpRequest;
 import http.HttpResponse;
 import http.HttpStatus;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import validation.ConstraintViolationException;
+import validation.Violation;
 
 public final class Route {
 
@@ -62,8 +65,18 @@ public final class Route {
 
   HttpResponse invoke(HttpRequest request, Map<String, String> pathVariables) throws Exception {
     Object[] arguments = new Object[binders.size()];
+    List<Violation> violations = new ArrayList<>();
+
     for (int i = 0; i < arguments.length; i++) {
-      arguments[i] = binders.get(i).bind(request, pathVariables);
+      try {
+        arguments[i] = binders.get(i).bind(request, pathVariables);
+      } catch (ConstraintViolationException e) {
+        violations.addAll(e.violations());
+      }
+    }
+
+    if (!violations.isEmpty()) {
+      throw new ConstraintViolationException(violations);
     }
 
     Object result = ResponseConverter.invoke(method, controller.get(), arguments);

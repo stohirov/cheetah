@@ -10,11 +10,14 @@ import http.HttpRequest;
 import http.HttpResponse;
 import http.HttpStatus;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
 import json.Json;
 import org.junit.jupiter.api.Test;
+import validation.ConstraintViolationException;
+import validation.Violation;
 
 class ErrorHandlingHandlerTest {
 
@@ -80,6 +83,20 @@ class ErrorHandlingHandlerTest {
     assertEquals(Optional.of("GET"), response.header("Allow"));
     assertEquals("{\"status\":405,\"error\":\"Method Not Allowed\",\"message\":\"nope\","
         + "\"path\":\"/test\"}", body(response));
+  }
+
+  @Test
+  void rendersViolations() {
+    ErrorHandlingHandler handler = new ErrorHandlingHandler(request -> {
+      throw new ConstraintViolationException(List.of(new Violation("name", "must not be blank")));
+    }, new ExceptionHandlers());
+
+    HttpResponse response = handler.handle(request());
+
+    assertEquals(HttpStatus.BAD_REQUEST, response.status());
+    assertEquals("{\"status\":400,\"error\":\"Bad Request\",\"message\":\"Validation failed\","
+        + "\"path\":\"/test\",\"violations\":[{\"field\":\"name\","
+        + "\"message\":\"must not be blank\"}]}", body(response));
   }
 
   @Test

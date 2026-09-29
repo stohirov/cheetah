@@ -11,14 +11,22 @@ import core.session.SessionHolder;
 import http.HttpException;
 import http.HttpRequest;
 import http.HttpStatus;
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import json.Json;
 import json.JsonException;
+import validation.ConstraintViolationException;
+import validation.Valid;
+import validation.Validator;
+import validation.Violation;
 
 @FunctionalInterface
 interface ArgumentBinder {
@@ -26,6 +34,40 @@ interface ArgumentBinder {
   Object bind(HttpRequest request, Map<String, String> pathVariables);
 
   static ArgumentBinder forParameter(Parameter parameter, PathPattern pattern) {
+    ArgumentBinder binder = baseBinder(parameter, pattern);
+    boolean body = parameter.isAnnotationPresent(ReqBody.class);
+
+    Annotation[] constraints = Arrays.stream(parameter.getAnnotations())
+        .filter(annotation -> annotation.annotationType().getPackage()
+            == Validator.class.getPackage())
+        .filter(annotation -> !(body && annotation instanceof Valid))
+        .toArray(Annotation[]::new);
+
+    if (!body && constraints.length == 0) {
+      return binder;
+    }
+
+    String field = parameter.getName();
+
+    return (request, pathVariables) -> {
+      Object value = binder.bind(request, pathVariables);
+      Object unwrapped = value instanceof Optional<?> optional ? optional.orElse(null) : value;
+
+      List<Violation> violations = new ArrayList<>(
+          Validator.validateValue(field, unwrapped, constraints));
+      if (body) {
+        violations.addAll(Validator.validate(unwrapped));
+      }
+
+      if (!violations.isEmpty()) {
+        throw new ConstraintViolationException(violations);
+      }
+
+      return value;
+    };
+  }
+
+  private static ArgumentBinder baseBinder(Parameter parameter, PathPattern pattern) {
     if (parameter.getType() == HttpRequest.class) {
       return (request, pathVariables) -> request;
     }
