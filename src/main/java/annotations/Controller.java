@@ -6,9 +6,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.PARAMETER)
-public @interface ReqParam {
-  String value() default "";
-  String paramName() default "";
-  boolean required() default true;
+@Target(ElementType.TYPE)
+public @interface Controller {
+  String path() default "";
 }
