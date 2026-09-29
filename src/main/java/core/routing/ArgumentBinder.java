@@ -2,6 +2,7 @@ package core.routing;
 
 import annotations.PathVariable;
 import annotations.ReqBody;
+import annotations.ReqHeader;
 import annotations.ReqParam;
 import convert.StringConverter;
 import http.HttpException;
@@ -12,6 +13,7 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import json.Json;
 import json.JsonException;
 
@@ -32,7 +34,18 @@ interface ArgumentBinder {
 
     ReqParam reqParam = parameter.getAnnotation(ReqParam.class);
     if (reqParam != null) {
-      return requestParamBinder(parameter, reqParam);
+      String name = resolveName(parameter, reqParam.value(), reqParam.paramName());
+
+      return namedValueBinder(parameter, "query parameter '" + name + "'", reqParam.required(),
+          request -> request.queryParam(name));
+    }
+
+    ReqHeader reqHeader = parameter.getAnnotation(ReqHeader.class);
+    if (reqHeader != null) {
+      String name = resolveName(parameter, reqHeader.value());
+
+      return namedValueBinder(parameter, "header '" + name + "'", reqHeader.required(),
+          request -> request.header(name));
     }
 
     if (parameter.isAnnotationPresent(ReqBody.class)) {
@@ -40,7 +53,7 @@ interface ArgumentBinder {
     }
 
     throw new IllegalArgumentException("Parameter '" + parameter.getName() + "' of "
-        + describe(parameter) + " needs @PathVariable, @ReqParam or @ReqBody");
+        + describe(parameter) + " needs @PathVariable, @ReqParam, @ReqHeader or @ReqBody");
   }
 
   private static ArgumentBinder pathVariableBinder(
@@ -57,28 +70,25 @@ interface ArgumentBinder {
         convert(pathVariables.get(name), type, "path variable '" + name + "'");
   }
 
-  private static ArgumentBinder requestParamBinder(Parameter parameter, ReqParam annotation) {
-    String name = resolveName(parameter, annotation.value(), annotation.paramName());
+  private static ArgumentBinder namedValueBinder(Parameter parameter, String description,
+      boolean required, Function<HttpRequest, Optional<String>> lookup) {
     boolean optional = parameter.getType() == Optional.class;
     Class<?> type = requireConvertible(parameter,
         optional ? optionalElementType(parameter) : parameter.getType());
 
-    if (!optional && !annotation.required() && type.isPrimitive()) {
+    if (!optional && !required && type.isPrimitive()) {
       throw new IllegalArgumentException(
-          "Optional query parameter '" + name + "' cannot be primitive in " + describe(parameter));
+          "Optional " + description + " cannot be primitive in " + describe(parameter));
     }
 
-    String description = "query parameter '" + name + "'";
-
     return (request, pathVariables) -> {
-      Optional<Object> value = request.queryParam(name)
-          .map(raw -> convert(raw, type, description));
+      Optional<Object> value = lookup.apply(request).map(raw -> convert(raw, type, description));
 
       if (optional) {
         return value;
       }
 
-      if (value.isEmpty() && annotation.required()) {
+      if (value.isEmpty() && required) {
         throw new HttpException(HttpStatus.BAD_REQUEST, "Missing " + description);
       }
 

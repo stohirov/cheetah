@@ -6,9 +6,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import annotations.Controller;
 import annotations.DeleteMethod;
 import annotations.GetMethod;
+import annotations.PatchMethod;
 import annotations.PathVariable;
 import annotations.PostMethod;
 import annotations.ReqBody;
+import annotations.ReqHeader;
 import annotations.ReqParam;
 import http.HttpException;
 import http.HttpMethod;
@@ -51,6 +53,17 @@ class RouterTest {
 
     @DeleteMethod(path = "/{id}")
     void delete(@PathVariable("id") long id) {
+    }
+
+    @PatchMethod(path = "/{id}", status = HttpStatus.ACCEPTED)
+    Item rename(@PathVariable long id, @ReqHeader("X-Name") String name,
+        @ReqHeader(value = "X-Tag", required = false) String tag) {
+      return new Item(id, tag == null ? name : name + "#" + tag);
+    }
+
+    @PostMethod(path = "/{id}/copies", status = HttpStatus.CREATED)
+    Item copy(@PathVariable long id) {
+      return new Item(id + 100, "copy");
     }
 
     @GetMethod(path = "/{id}/raw", produces = "text/csv")
@@ -170,7 +183,41 @@ class RouterTest {
         () -> router.handle(request(HttpMethod.PUT, "/items/1")));
 
     assertEquals(HttpStatus.METHOD_NOT_ALLOWED, exception.status());
-    assertEquals(Map.of("Allow", "DELETE, GET"), exception.headers());
+    assertEquals(Map.of("Allow", "DELETE, GET, HEAD, OPTIONS, PATCH"), exception.headers());
+  }
+
+  @Test
+  void bindsHeadersAndAppliesStatus() throws Exception {
+    HttpResponse renamed = router.handle(request(HttpMethod.PATCH, "/items/4", Map.of(),
+        Map.of("x-name", "pen", "x-tag", "blue"), ""));
+    HttpResponse copied = router.handle(request(HttpMethod.POST, "/items/4/copies"));
+
+    assertEquals(HttpStatus.ACCEPTED, renamed.status());
+    assertEquals("{\"id\":4,\"name\":\"pen#blue\"}", body(renamed));
+    assertEquals(HttpStatus.CREATED, copied.status());
+  }
+
+  @Test
+  void rejectsMissingRequiredHeader() {
+    HttpException exception = assertThrows(HttpException.class,
+        () -> router.handle(request(HttpMethod.PATCH, "/items/4")));
+
+    assertEquals(HttpStatus.BAD_REQUEST, exception.status());
+  }
+
+  @Test
+  void answersHeadWithGetRoute() throws Exception {
+    HttpResponse response = router.handle(request(HttpMethod.HEAD, "/items/5"));
+
+    assertEquals("{\"id\":5,\"name\":\"item-5\"}", body(response));
+  }
+
+  @Test
+  void answersOptionsWithAllowedMethods() throws Exception {
+    HttpResponse response = router.handle(request(HttpMethod.OPTIONS, "/items/latest"));
+
+    assertEquals(HttpStatus.NO_CONTENT, response.status());
+    assertEquals(Optional.of("DELETE, GET, HEAD, OPTIONS, PATCH"), response.header("Allow"));
   }
 
   @Test

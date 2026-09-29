@@ -2,6 +2,7 @@ package http;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -32,6 +33,17 @@ class HttpResponseWriterTest {
     assertEquals(
         "HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n",
         write(HttpResponse.of(HttpStatus.NO_CONTENT), false));
+  }
+
+  @Test
+  void omitsBodyButKeepsLengthWhenRequested() throws IOException {
+    ByteArrayOutputStream output = new ByteArrayOutputStream();
+    writer.write(output, HttpResponse.text(HttpStatus.OK, "hello"), true, false);
+
+    String raw = output.toString(StandardCharsets.UTF_8);
+
+    assertTrue(raw.contains("Content-Length: 5\r\n"));
+    assertTrue(raw.endsWith("\r\n\r\n"));
   }
 
   @Test

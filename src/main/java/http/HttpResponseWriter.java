@@ -13,6 +13,11 @@ public class HttpResponseWriter {
 
   public void write(OutputStream output, HttpResponse response, boolean keepAlive)
       throws IOException {
+    write(output, response, keepAlive, true);
+  }
+
+  public void write(OutputStream output, HttpResponse response, boolean keepAlive,
+      boolean includeBody) throws IOException {
     HttpStatus status = response.status();
 
     StringBuilder head = new StringBuilder()
@@ -33,7 +38,7 @@ public class HttpResponseWriter {
         .append(CRLF);
 
     output.write(head.toString().getBytes(StandardCharsets.ISO_8859_1));
-    if (status != HttpStatus.NO_CONTENT) {
+    if (includeBody && status != HttpStatus.NO_CONTENT) {
       output.write(response.body());
     }
 

@@ -92,6 +92,21 @@ class CheetahServerTest {
   }
 
   @Test
+  void omitsBodyForHeadRequests() throws Exception {
+    start(request -> HttpResponse.text(HttpStatus.OK, "payload"));
+
+    try (Socket socket = new Socket("localhost", server.port())) {
+      socket.getOutputStream().write("HEAD / HTTP/1.1\r\nConnection: close\r\n\r\n"
+          .getBytes(StandardCharsets.US_ASCII));
+
+      String raw = readAll(socket.getInputStream());
+
+      assertTrue(raw.contains("Content-Length: 7\r\n"));
+      assertFalse(raw.contains("payload"));
+    }
+  }
+
+  @Test
   void rejectsMalformedRequest() throws Exception {
     start(request -> HttpResponse.of(HttpStatus.OK));
 

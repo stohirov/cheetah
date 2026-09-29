@@ -8,7 +8,7 @@ import java.lang.annotation.Target;
 
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
-public @interface DeleteMethod {
+public @interface PatchMethod {
   String path() default "";
   String consumes() default "";
   String produces() default "";

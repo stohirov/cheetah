@@ -15,16 +15,18 @@ public final class Route {
   private final PathPattern pattern;
   private final String consumes;
   private final String produces;
+  private final HttpStatus status;
   private final Object controller;
   private final Method method;
   private final List<ArgumentBinder> binders;
 
   Route(HttpMethod httpMethod, PathPattern pattern, String consumes, String produces,
-      Object controller, Method method) {
+      HttpStatus status, Object controller, Method method) {
     this.httpMethod = httpMethod;
     this.pattern = pattern;
     this.consumes = consumes;
     this.produces = produces;
+    this.status = status;
     this.controller = controller;
     this.method = method;
 
@@ -65,7 +67,7 @@ public final class Route {
 
     Object result = ResponseConverter.invoke(method, controller, arguments);
 
-    return ResponseConverter.convert(result, HttpStatus.OK, produces);
+    return ResponseConverter.convert(result, status, produces);
   }
 
   @Override

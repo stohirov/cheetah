@@ -3,6 +3,7 @@ package core;
 import core.error.ErrorBody;
 import core.handler.Handler;
 import http.HttpException;
+import http.HttpMethod;
 import http.HttpRequest;
 import http.HttpRequestParser;
 import http.HttpResponse;
@@ -113,7 +114,9 @@ public class CheetahServer implements AutoCloseable {
         }
 
         keepAlive = request.get().keepAlive();
-        writer.write(output, dispatch(request.get()), keepAlive);
+        boolean includeBody = request.get().method() != HttpMethod.HEAD;
+
+        writer.write(output, dispatch(request.get()), keepAlive, includeBody);
       }
     } catch (IOException e) {
       LOGGER.log(Level.FINE, "Connection closed", e);
