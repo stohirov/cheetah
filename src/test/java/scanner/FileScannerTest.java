@@ -3,6 +3,7 @@ package scanner;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import config.Config;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -31,7 +32,7 @@ class FileScannerTest {
   void fallsBackToDefaultPortWhenNothingConfigured() throws IOException {
     PropertiesFileReader reader = scan();
 
-    assertEquals(PropertiesFileReader.DEFAULT_PORT, reader.resolve("default").getPort());
+    assertEquals(Config.DEFAULT_PORT, reader.resolve("default").getPort());
   }
 
   @Test
@@ -40,7 +41,7 @@ class FileScannerTest {
 
     new FileScanner(reader, directory.resolve("missing")).scanForApplicationProperties();
 
-    assertEquals(PropertiesFileReader.DEFAULT_PORT, reader.resolve("default").getPort());
+    assertEquals(Config.DEFAULT_PORT, reader.resolve("default").getPort());
   }
 
   @Test

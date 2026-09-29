@@ -16,7 +16,7 @@ class ApplicationRunnerTest {
 
   @Test
   void servesScannedControllers() throws Exception {
-    try (CheetahServer server = ApplicationRunner.run(SampleApp.class, "--port=0")) {
+    try (CheetahServer server = ApplicationRunner.run(SampleApp.class, "--server.port=0")) {
       HttpResponse<String> greeting = get(server, "/greetings/Cheetah");
       HttpResponse<String> hidden = get(server, "/hidden");
 
