@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cheetah Todos</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <main>
+    <h1>Cheetah Todos</h1>
+
+    <form id="new-todo">
+      <input id="title" placeholder="What needs doing?" autocomplete="off" required>
+      <button type="submit">Add</button>
+    </form>
+
+    <p id="error" role="alert"></p>
+    <ul id="todos"></ul>
+  </main>
+
+  <script>
+    const list = document.getElementById('todos');
+    const error = document.getElementById('error');
+
+    async function request(method, path, body) {
+      const response = await fetch(path, {
+        method,
+        headers: body ? {'Content-Type': 'application/json'} : {},
+        body: body ? JSON.stringify(body) : undefined
+      });
+
+      if (!response.ok) {
+        throw new Error((await response.json()).message);
+      }
+
+      return response.status === 204 ? null : response.json();
+    }
+
+    async function render() {
+      list.replaceChildren();
+
+      for (const todo of await request('GET', '/todos')) {
+        const item = document.createElement('li');
+        item.className = todo.done ? 'done' : '';
+
+        const title = document.createElement('span');
+        title.textContent = todo.title;
+        title.onclick = () => run(() => request('PATCH', `/todos/${todo.id}/toggle`));
+
+        const remove = document.createElement('button');
+        remove.textContent = 'Delete';
+        remove.onclick = () => run(() => request('DELETE', `/todos/${todo.id}`));
+
+        item.append(title, remove);
+        list.append(item);
+      }
+    }
+
+    async function run(action) {
+      try {
+        error.textContent = '';
+        await action();
+        await render();
+      } catch (e) {
+        error.textContent = e.message;
+      }
+    }
+
+    document.getElementById('new-todo').onsubmit = event => {
+      event.preventDefault();
+
+      const input = document.getElementById('title');
+      run(async () => {
+        await request('POST', '/todos', {title: input.value});
+        input.value = '';
+      });
+    };
+
+    run(() => Promise.resolve());
+  </script>
+</body>
+</html>
