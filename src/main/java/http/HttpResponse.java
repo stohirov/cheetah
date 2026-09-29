@@ -1,12 +1,18 @@
 package http;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
 
-public record HttpResponse(HttpStatus status, Map<String, String> headers, byte[] body) {
+public record HttpResponse(
+    HttpStatus status,
+    Map<String, String> headers,
+    byte[] body,
+    List<Cookie> cookies) {
 
   public static final String TEXT_PLAIN = "text/plain; charset=utf-8";
   public static final String APPLICATION_JSON = "application/json; charset=utf-8";
@@ -22,6 +28,11 @@ public record HttpResponse(HttpStatus status, Map<String, String> headers, byte[
     });
 
     headers = Collections.unmodifiableMap(copy);
+    cookies = List.copyOf(cookies);
+  }
+
+  public HttpResponse(HttpStatus status, Map<String, String> headers, byte[] body) {
+    this(status, headers, body, List.of());
   }
 
   public static HttpResponse of(HttpStatus status) {
@@ -43,11 +54,18 @@ public record HttpResponse(HttpStatus status, Map<String, String> headers, byte[
     copy.putAll(headers);
     copy.put(name, value);
 
-    return new HttpResponse(status, copy, body);
+    return new HttpResponse(status, copy, body, cookies);
   }
 
   public HttpResponse withBody(byte[] newBody) {
-    return new HttpResponse(status, headers, newBody);
+    return new HttpResponse(status, headers, newBody, cookies);
+  }
+
+  public HttpResponse withCookie(Cookie cookie) {
+    List<Cookie> copy = new ArrayList<>(cookies);
+    copy.add(cookie);
+
+    return new HttpResponse(status, headers, body, copy);
   }
 
   public Optional<String> header(String name) {

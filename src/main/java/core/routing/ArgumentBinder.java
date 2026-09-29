@@ -1,5 +1,6 @@
 package core.routing;
 
+import annotations.CookieValue;
 import annotations.PathVariable;
 import annotations.ReqBody;
 import annotations.ReqHeader;
@@ -48,12 +49,20 @@ interface ArgumentBinder {
           request -> request.header(name));
     }
 
+    CookieValue cookieValue = parameter.getAnnotation(CookieValue.class);
+    if (cookieValue != null) {
+      String name = resolveName(parameter, cookieValue.value());
+
+      return namedValueBinder(parameter, "cookie '" + name + "'", cookieValue.required(),
+          request -> request.cookie(name));
+    }
+
     if (parameter.isAnnotationPresent(ReqBody.class)) {
       return requestBodyBinder(parameter);
     }
 
     throw new IllegalArgumentException("Parameter '" + parameter.getName() + "' of "
-        + describe(parameter) + " needs @PathVariable, @ReqParam, @ReqHeader or @ReqBody");
+        + describe(parameter) + " needs a binding annotation such as @ReqParam or @ReqBody");
   }
 
   private static ArgumentBinder pathVariableBinder(

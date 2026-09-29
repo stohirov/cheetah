@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import annotations.Controller;
+import annotations.CookieValue;
 import annotations.DeleteMethod;
 import annotations.GetMethod;
 import annotations.PatchMethod;
@@ -59,6 +60,12 @@ class RouterTest {
     Item rename(@PathVariable long id, @ReqHeader("X-Name") String name,
         @ReqHeader(value = "X-Tag", required = false) String tag) {
       return new Item(id, tag == null ? name : name + "#" + tag);
+    }
+
+    @GetMethod(path = "/preferences")
+    String preferences(@CookieValue String theme,
+        @CookieValue(value = "lang", required = false) String language) {
+      return theme + "/" + language;
     }
 
     @PostMethod(path = "/{id}/copies", status = HttpStatus.CREATED)
@@ -195,6 +202,14 @@ class RouterTest {
     assertEquals(HttpStatus.ACCEPTED, renamed.status());
     assertEquals("{\"id\":4,\"name\":\"pen#blue\"}", body(renamed));
     assertEquals(HttpStatus.CREATED, copied.status());
+  }
+
+  @Test
+  void bindsCookies() throws Exception {
+    HttpResponse response = router.handle(request(HttpMethod.GET, "/items/preferences",
+        Map.of(), Map.of("cookie", "theme=dark"), ""));
+
+    assertEquals("dark/null", body(response));
   }
 
   @Test

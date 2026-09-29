@@ -30,6 +30,10 @@ public class HttpResponseWriter {
       }
     });
 
+    for (Cookie cookie : response.cookies()) {
+      head.append("Set-Cookie: ").append(cookie.toHeader()).append(CRLF);
+    }
+
     if (status != HttpStatus.NO_CONTENT) {
       head.append("Content-Length: ").append(response.body().length).append(CRLF);
     }

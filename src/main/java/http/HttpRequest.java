@@ -1,6 +1,7 @@
 package http;
 
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -27,6 +28,31 @@ public record HttpRequest(
     List<String> values = queryParams.getOrDefault(name, List.of());
 
     return values.stream().findFirst();
+  }
+
+  public Map<String, String> cookies() {
+    Map<String, String> cookies = new LinkedHashMap<>();
+
+    for (String pair : header("cookie").orElse("").split(";")) {
+      int separator = pair.indexOf('=');
+      if (separator <= 0) {
+        continue;
+      }
+
+      String name = pair.substring(0, separator).trim();
+      String value = pair.substring(separator + 1).trim();
+      if (value.length() >= 2 && value.startsWith("\"") && value.endsWith("\"")) {
+        value = value.substring(1, value.length() - 1);
+      }
+
+      cookies.putIfAbsent(name, value);
+    }
+
+    return cookies;
+  }
+
+  public Optional<String> cookie(String name) {
+    return Optional.ofNullable(cookies().get(name));
   }
 
   public String bodyAsString() {
