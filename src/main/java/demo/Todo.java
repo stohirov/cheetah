@@ -1,4 +1,4 @@
 package demo;
 
-public record Todo(long id, String title, boolean done) {
+public record Todo(long id, String title, boolean done, String createdBy) {
 }

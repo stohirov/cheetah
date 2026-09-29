@@ -14,9 +14,9 @@ public class ApiExceptionHandlers {
     return body(HttpStatus.NOT_FOUND, exception, request);
   }
 
-  @ExceptionHandler(status = HttpStatus.UNPROCESSABLE_CONTENT)
-  public ErrorBody invalid(ValidationException exception, HttpRequest request) {
-    return body(HttpStatus.UNPROCESSABLE_CONTENT, exception, request);
+  @ExceptionHandler(status = HttpStatus.CONFLICT)
+  public ErrorBody limitReached(TodoLimitException exception, HttpRequest request) {
+    return body(HttpStatus.CONFLICT, exception, request);
   }
 
   private static ErrorBody body(HttpStatus status, Exception exception, HttpRequest request) {

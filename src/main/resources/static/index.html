@@ -10,6 +10,13 @@
   <main>
     <h1>Cheetah Todos</h1>
 
+    <form id="sign-in">
+      <span>Signed in as <strong id="user">anonymous</strong></span>
+      <input id="name" placeholder="Your name" autocomplete="off" required>
+      <button type="submit">Sign in</button>
+      <button type="button" id="sign-out">Sign out</button>
+    </form>
+
     <form id="new-todo">
       <input id="title" placeholder="What needs doing?" autocomplete="off" required>
       <button type="submit">Add</button>
@@ -31,13 +38,17 @@
       });
 
       if (!response.ok) {
-        throw new Error((await response.json()).message);
+        const problem = await response.json();
+        const details = (problem.violations || []).map(v => `${v.field} ${v.message}`);
+
+        throw new Error(details.length ? details.join(', ') : problem.message);
       }
 
       return response.status === 204 ? null : response.json();
     }
 
     async function render() {
+      document.getElementById('user').textContent = (await request('GET', '/session')).name;
       list.replaceChildren();
 
       for (const todo of await request('GET', '/todos')) {
@@ -45,7 +56,7 @@
         item.className = todo.done ? 'done' : '';
 
         const title = document.createElement('span');
-        title.textContent = todo.title;
+        title.textContent = `${todo.title} (${todo.createdBy})`;
         title.onclick = () => run(() => request('PATCH', `/todos/${todo.id}/toggle`));
 
         const remove = document.createElement('button');
@@ -76,6 +87,18 @@
         input.value = '';
       });
     };
+
+    document.getElementById('sign-in').onsubmit = event => {
+      event.preventDefault();
+
+      const input = document.getElementById('name');
+      run(async () => {
+        await request('PUT', '/session', {name: input.value});
+        input.value = '';
+      });
+    };
+
+    document.getElementById('sign-out').onclick = () => run(() => request('DELETE', '/session'));
 
     run(() => Promise.resolve());
   </script>

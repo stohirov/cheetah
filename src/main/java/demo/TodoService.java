@@ -2,6 +2,7 @@ package demo;
 
 import annotations.Component;
 import annotations.Value;
+import core.context.Provider;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -14,10 +15,13 @@ public class TodoService {
 
   private final Map<Long, Todo> todos = new ConcurrentHashMap<>();
   private final AtomicLong ids = new AtomicLong();
-  private final int maxTitleLength;
+  private final int maxItems;
+  private final Provider<CurrentUser> currentUser;
 
-  public TodoService(@Value("todo.max-title-length:100") int maxTitleLength) {
-    this.maxTitleLength = maxTitleLength;
+  public TodoService(@Value("todo.max-items:500") int maxItems,
+      Provider<CurrentUser> currentUser) {
+    this.maxItems = maxItems;
+    this.currentUser = currentUser;
   }
 
   public List<Todo> list(Optional<Boolean> done) {
@@ -37,8 +41,12 @@ public class TodoService {
   }
 
   public Todo create(TodoRequest request) {
+    if (todos.size() >= maxItems) {
+      throw new TodoLimitException(maxItems);
+    }
+
     long id = ids.incrementAndGet();
-    Todo todo = new Todo(id, validTitle(request), request.done());
+    Todo todo = new Todo(id, request.title().trim(), request.done(), currentUser.get().name());
 
     todos.put(id, todo);
 
@@ -46,9 +54,10 @@ public class TodoService {
   }
 
   public Todo update(long id, TodoRequest request) {
-    Todo updated = new Todo(id, validTitle(request), request.done());
+    Todo updated = todos.computeIfPresent(id, (key, todo) ->
+        new Todo(id, request.title().trim(), request.done(), todo.createdBy()));
 
-    if (todos.replace(id, updated) == null) {
+    if (updated == null) {
       throw new TodoNotFoundException(id);
     }
 
@@ -57,7 +66,7 @@ public class TodoService {
 
   public Todo toggle(long id) {
     Todo toggled = todos.computeIfPresent(id,
-        (key, todo) -> new Todo(todo.id(), todo.title(), !todo.done()));
+        (key, todo) -> new Todo(todo.id(), todo.title(), !todo.done(), todo.createdBy()));
 
     if (toggled == null) {
       throw new TodoNotFoundException(id);
@@ -70,20 +79,6 @@ public class TodoService {
     if (todos.remove(id) == null) {
       throw new TodoNotFoundException(id);
     }
-  }
-
-  private String validTitle(TodoRequest request) {
-    String title = request.title() == null ? "" : request.title().trim();
-
-    if (title.isEmpty()) {
-      throw new ValidationException("title is required");
-    }
-
-    if (title.length() > maxTitleLength) {
-      throw new ValidationException("title must be at most " + maxTitleLength + " characters");
-    }
-
-    return title;
   }
 
 }
