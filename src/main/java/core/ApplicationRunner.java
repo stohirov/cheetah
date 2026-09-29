@@ -10,6 +10,7 @@ import core.filter.AccessLogFilter;
 import core.filter.Filter;
 import core.filter.FilteringHandler;
 import core.handler.Handler;
+import core.resource.StaticResourceHandler;
 import core.routing.Route;
 import core.routing.Router;
 import java.io.IOException;
@@ -35,6 +36,7 @@ public final class ApplicationRunner {
   private static final String ENV_ARGUMENT = "env";
   private static final String CONFIG_DIR_ARGUMENT = "config-dir";
   private static final String ACCESS_LOG_KEY = "server.access-log";
+  private static final String STATIC_ROOT_KEY = "server.static-root";
 
   private ApplicationRunner() {
   }
@@ -56,7 +58,9 @@ public final class ApplicationRunner {
       Router router = createRouter(context);
       ExceptionHandlers exceptionHandlers = createExceptionHandlers(context);
 
-      Handler routes = new ErrorHandlingHandler(router, exceptionHandlers);
+      Handler resources = new StaticResourceHandler(primarySource.getClassLoader(),
+          config.get(STATIC_ROOT_KEY, "static"), router);
+      Handler routes = new ErrorHandlingHandler(resources, exceptionHandlers);
       Handler filtered = new FilteringHandler(createFilters(context, config), routes);
       Handler handler = new ErrorHandlingHandler(filtered, exceptionHandlers);
 
