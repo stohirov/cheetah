@@ -1,5 +1,6 @@
 package core;
 
+import core.error.ErrorBody;
 import core.handler.Handler;
 import http.HttpException;
 import http.HttpRequest;
@@ -103,7 +104,7 @@ public class CheetahServer implements AutoCloseable {
         try {
           request = parser.parse(input);
         } catch (HttpException e) {
-          writer.write(output, errorResponse(e.status(), e.getMessage()), false);
+          writer.write(output, ErrorBody.response(e, null), false);
           return;
         }
 
@@ -123,18 +124,12 @@ public class CheetahServer implements AutoCloseable {
     try {
       return handler.handle(request);
     } catch (HttpException e) {
-      return errorResponse(e.status(), e.getMessage());
+      return ErrorBody.response(e, request.path());
     } catch (Exception e) {
       LOGGER.log(Level.SEVERE, "Unhandled error for " + request.method() + " " + request.path(), e);
 
-      HttpStatus status = HttpStatus.INTERNAL_SERVER_ERROR;
-
-      return errorResponse(status, status.reason());
+      return ErrorBody.response(HttpStatus.INTERNAL_SERVER_ERROR, null, request.path());
     }
-  }
-
-  private static HttpResponse errorResponse(HttpStatus status, String message) {
-    return HttpResponse.text(status, message == null ? status.reason() : message);
   }
 
 }

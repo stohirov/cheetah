@@ -4,12 +4,10 @@ import http.HttpMethod;
 import http.HttpRequest;
 import http.HttpResponse;
 import http.HttpStatus;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import json.Json;
 
 public final class Route {
 
@@ -65,46 +63,15 @@ public final class Route {
       arguments[i] = binders.get(i).bind(request, pathVariables);
     }
 
-    Object result;
-    try {
-      result = method.invoke(controller, arguments);
-    } catch (InvocationTargetException e) {
-      if (e.getCause() instanceof Exception cause) {
-        throw cause;
-      }
+    Object result = ResponseConverter.invoke(method, controller, arguments);
 
-      throw (Error) e.getCause();
-    }
-
-    return toResponse(result);
+    return ResponseConverter.convert(result, HttpStatus.OK, produces);
   }
 
   @Override
   public String toString() {
     return httpMethod + " " + pattern + " -> "
         + method.getDeclaringClass().getSimpleName() + "." + method.getName();
-  }
-
-  private HttpResponse toResponse(Object result) {
-    if (result instanceof HttpResponse response) {
-      return response;
-    }
-
-    if (result == null) {
-      return HttpResponse.of(HttpStatus.NO_CONTENT);
-    }
-
-    HttpResponse response;
-    if (result instanceof byte[] bytes) {
-      response = new HttpResponse(HttpStatus.OK,
-          Map.of("Content-Type", "application/octet-stream"), bytes);
-    } else if (result instanceof CharSequence text) {
-      response = HttpResponse.text(HttpStatus.OK, text.toString());
-    } else {
-      response = HttpResponse.json(HttpStatus.OK, Json.write(result));
-    }
-
-    return produces.isBlank() ? response : response.withHeader("Content-Type", produces);
   }
 
   private static String mediaType(String contentType) {

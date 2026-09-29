@@ -1,6 +1,7 @@
 package core;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import core.handler.Handler;
@@ -57,7 +58,8 @@ class CheetahServerTest {
     java.net.http.HttpResponse<String> response = get("/missing");
 
     assertEquals(404, response.statusCode());
-    assertEquals("nothing here", response.body());
+    assertEquals("{\"status\":404,\"error\":\"Not Found\",\"message\":\"nothing here\","
+        + "\"path\":\"/missing\"}", response.body());
   }
 
   @Test
@@ -69,7 +71,7 @@ class CheetahServerTest {
     java.net.http.HttpResponse<String> response = get("/boom");
 
     assertEquals(500, response.statusCode());
-    assertEquals("Internal Server Error", response.body());
+    assertFalse(response.body().contains("secret detail"));
   }
 
   @Test

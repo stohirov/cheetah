@@ -165,11 +165,12 @@ class RouterTest {
   }
 
   @Test
-  void reportsDisallowedMethod() throws Exception {
-    HttpResponse response = router.handle(request(HttpMethod.PUT, "/items/1"));
+  void reportsDisallowedMethod() {
+    HttpException exception = assertThrows(HttpException.class,
+        () -> router.handle(request(HttpMethod.PUT, "/items/1")));
 
-    assertEquals(HttpStatus.METHOD_NOT_ALLOWED, response.status());
-    assertEquals(Optional.of("DELETE, GET"), response.header("Allow"));
+    assertEquals(HttpStatus.METHOD_NOT_ALLOWED, exception.status());
+    assertEquals(Map.of("Allow", "DELETE, GET"), exception.headers());
   }
 
   @Test

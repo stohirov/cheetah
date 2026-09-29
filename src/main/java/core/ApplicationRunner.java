@@ -4,6 +4,9 @@ import annotations.Component;
 import annotations.Controller;
 import config.Config;
 import core.context.ApplicationContext;
+import core.error.ErrorHandlingHandler;
+import core.error.ExceptionHandlers;
+import core.handler.Handler;
 import core.routing.Route;
 import core.routing.Router;
 import java.io.IOException;
@@ -45,8 +48,11 @@ public final class ApplicationRunner {
 
       ApplicationContext context = createContext(primarySource, config);
       Router router = createRouter(context);
+      ExceptionHandlers exceptionHandlers = createExceptionHandlers(context);
 
-      CheetahServer server = new CheetahServer(config.server(), router);
+      Handler handler = new ErrorHandlingHandler(router, exceptionHandlers);
+
+      CheetahServer server = new CheetahServer(config.server(), handler);
       server.start();
 
       Runtime.getRuntime().addShutdownHook(new Thread(() -> stop(server)));
@@ -112,6 +118,16 @@ public final class ApplicationRunner {
     }
 
     return router;
+  }
+
+  private static ExceptionHandlers createExceptionHandlers(ApplicationContext context) {
+    ExceptionHandlers exceptionHandlers = new ExceptionHandlers();
+
+    for (Object bean : context.getBeansOfType(Object.class)) {
+      exceptionHandlers.register(bean);
+    }
+
+    return exceptionHandlers;
   }
 
   private static void stop(CheetahServer server) {

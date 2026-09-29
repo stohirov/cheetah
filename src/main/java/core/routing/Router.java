@@ -74,7 +74,7 @@ public class Router implements Handler {
           .sorted()
           .collect(Collectors.joining(", "));
 
-      return HttpResponse.text(HttpStatus.METHOD_NOT_ALLOWED,
+      throw new HttpException(HttpStatus.METHOD_NOT_ALLOWED,
           request.method() + " is not allowed for " + request.path())
           .withHeader("Allow", allowed);
     }
