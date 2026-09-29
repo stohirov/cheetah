@@ -46,6 +46,10 @@ public record HttpResponse(HttpStatus status, Map<String, String> headers, byte[
     return new HttpResponse(status, copy, body);
   }
 
+  public HttpResponse withBody(byte[] newBody) {
+    return new HttpResponse(status, headers, newBody);
+  }
+
   public Optional<String> header(String name) {
     return Optional.ofNullable(headers.get(name));
   }

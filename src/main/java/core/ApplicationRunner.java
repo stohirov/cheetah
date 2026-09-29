@@ -7,6 +7,7 @@ import core.context.ApplicationContext;
 import core.error.ErrorHandlingHandler;
 import core.error.ExceptionHandlers;
 import core.filter.AccessLogFilter;
+import core.filter.CompressionFilter;
 import core.filter.Filter;
 import core.filter.FilteringHandler;
 import core.handler.Handler;
@@ -37,6 +38,8 @@ public final class ApplicationRunner {
   private static final String CONFIG_DIR_ARGUMENT = "config-dir";
   private static final String ACCESS_LOG_KEY = "server.access-log";
   private static final String STATIC_ROOT_KEY = "server.static-root";
+  private static final String COMPRESSION_KEY = "server.compression.enabled";
+  private static final String COMPRESSION_MIN_SIZE_KEY = "server.compression.min-size";
 
   private ApplicationRunner() {
   }
@@ -137,6 +140,10 @@ public final class ApplicationRunner {
 
     if (Boolean.parseBoolean(config.get(ACCESS_LOG_KEY, "false"))) {
       filters.add(new AccessLogFilter());
+    }
+
+    if (Boolean.parseBoolean(config.get(COMPRESSION_KEY, "true"))) {
+      filters.add(new CompressionFilter(config.getInt(COMPRESSION_MIN_SIZE_KEY, 1024)));
     }
 
     return filters;
