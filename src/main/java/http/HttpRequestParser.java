@@ -135,8 +135,19 @@ public class HttpRequestParser {
 
   private static byte[] readBody(InputStream input, Map<String, String> headers)
       throws IOException {
-    if (headers.containsKey("transfer-encoding")) {
-      throw new HttpException(HttpStatus.NOT_IMPLEMENTED, "Transfer-Encoding is not supported");
+    String transferEncoding = headers.get("transfer-encoding");
+    if (transferEncoding != null) {
+      if (headers.containsKey("content-length")) {
+        throw new HttpException(HttpStatus.BAD_REQUEST,
+            "Transfer-Encoding and Content-Length must not both be present");
+      }
+
+      if (!transferEncoding.trim().equalsIgnoreCase("chunked")) {
+        throw new HttpException(HttpStatus.NOT_IMPLEMENTED,
+            "Unsupported Transfer-Encoding: " + transferEncoding);
+      }
+
+      return readChunkedBody(input);
     }
 
     String contentLength = headers.get("content-length");
@@ -165,6 +176,64 @@ public class HttpRequestParser {
     }
 
     return body;
+  }
+
+  private static byte[] readChunkedBody(InputStream input) throws IOException {
+    ByteArrayOutputStream body = new ByteArrayOutputStream();
+
+    while (true) {
+      long size = parseChunkSize(requireLine(input));
+      if (size == 0) {
+        break;
+      }
+
+      if (body.size() + size > MAX_BODY_LENGTH) {
+        throw new HttpException(HttpStatus.CONTENT_TOO_LARGE, "Request body is too large");
+      }
+
+      byte[] chunk = input.readNBytes((int) size);
+      if (chunk.length != size) {
+        throw new EOFException("Connection closed while reading chunk");
+      }
+
+      body.writeBytes(chunk);
+
+      if (!requireLine(input).isEmpty()) {
+        throw new HttpException(HttpStatus.BAD_REQUEST, "Malformed chunk terminator");
+      }
+    }
+
+    String trailer;
+    do {
+      trailer = requireLine(input);
+    } while (!trailer.isEmpty());
+
+    return body.toByteArray();
+  }
+
+  private static long parseChunkSize(String line) {
+    int extension = line.indexOf(';');
+    String hex = (extension < 0 ? line : line.substring(0, extension)).trim();
+
+    try {
+      long size = Long.parseLong(hex, 16);
+      if (size < 0 || hex.startsWith("+")) {
+        throw new NumberFormatException(hex);
+      }
+
+      return size;
+    } catch (NumberFormatException e) {
+      throw new HttpException(HttpStatus.BAD_REQUEST, "Invalid chunk size: " + line, e);
+    }
+  }
+
+  private static String requireLine(InputStream input) throws IOException {
+    String line = readLine(input);
+    if (line == null) {
+      throw new EOFException("Connection closed while reading chunked body");
+    }
+
+    return line;
   }
 
   private static String readLine(InputStream input) throws IOException {

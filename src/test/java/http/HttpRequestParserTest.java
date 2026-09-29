@@ -79,11 +79,45 @@ class HttpRequestParserTest {
   }
 
   @Test
-  void rejectsChunkedBodies() {
+  void readsChunkedBodies() throws IOException {
+    InputStream input = stream(
+        "POST / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n"
+            + "5\r\nhello\r\n"
+            + "7;name=value\r\n, world\r\n"
+            + "0\r\n"
+            + "X-Trailer: ignored\r\n"
+            + "\r\n"
+            + "GET /next HTTP/1.1\r\n\r\n");
+
+    assertEquals("hello, world", parser.parse(input).orElseThrow().bodyAsString());
+    assertEquals("/next", parser.parse(input).orElseThrow().path());
+  }
+
+  @Test
+  void rejectsUnsupportedTransferEncoding() {
     HttpException exception = assertThrows(HttpException.class,
-        () -> parseSingle("POST / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n"));
+        () -> parseSingle("POST / HTTP/1.1\r\nTransfer-Encoding: gzip\r\n\r\n"));
 
     assertEquals(HttpStatus.NOT_IMPLEMENTED, exception.status());
+  }
+
+  @Test
+  void rejectsAmbiguousBodyLength() {
+    HttpException exception = assertThrows(HttpException.class, () -> parseSingle(
+        "POST / HTTP/1.1\r\nTransfer-Encoding: chunked\r\nContent-Length: 3\r\n\r\n"));
+
+    assertEquals(HttpStatus.BAD_REQUEST, exception.status());
+  }
+
+  @Test
+  void rejectsMalformedChunks() {
+    HttpException badSize = assertThrows(HttpException.class, () -> parseSingle(
+        "POST / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\nzz\r\n"));
+    HttpException badTerminator = assertThrows(HttpException.class, () -> parseSingle(
+        "POST / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n2\r\nabc\r\n0\r\n\r\n"));
+
+    assertEquals(HttpStatus.BAD_REQUEST, badSize.status());
+    assertEquals(HttpStatus.BAD_REQUEST, badTerminator.status());
   }
 
   @Test
