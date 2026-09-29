@@ -23,7 +23,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.net.ssl.SSLServerSocket;
 import models.Server;
+import models.TlsSettings;
 
 public class CheetahServer implements AutoCloseable {
 
@@ -32,6 +34,7 @@ public class CheetahServer implements AutoCloseable {
 
   private final Server config;
   private final Handler handler;
+  private final ClassLoader classLoader;
   private final HttpRequestParser parser = new HttpRequestParser();
   private final HttpResponseWriter writer = new HttpResponseWriter();
   private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
@@ -39,8 +42,13 @@ public class CheetahServer implements AutoCloseable {
   private ServerSocket serverSocket;
 
   public CheetahServer(Server config, Handler handler) {
+    this(config, handler, Thread.currentThread().getContextClassLoader());
+  }
+
+  public CheetahServer(Server config, Handler handler, ClassLoader classLoader) {
     this.config = config;
     this.handler = handler;
+    this.classLoader = classLoader;
   }
 
   public synchronized void start() throws IOException {
@@ -48,13 +56,35 @@ public class CheetahServer implements AutoCloseable {
       throw new IllegalStateException("Server is already started");
     }
 
-    serverSocket = new ServerSocket();
+    serverSocket = createServerSocket();
     serverSocket.setReuseAddress(true);
     serverSocket.bind(new InetSocketAddress(config.getPort()));
 
     Thread.ofPlatform().name("cheetah-acceptor").start(this::acceptConnections);
 
-    LOGGER.info("Cheetah started on port " + port());
+    LOGGER.info("Cheetah started on port " + port() + " (" + scheme() + ")");
+  }
+
+  public boolean isSecure() {
+    return config.getTls().isPresent();
+  }
+
+  private String scheme() {
+    return isSecure() ? "https" : "http";
+  }
+
+  private ServerSocket createServerSocket() throws IOException {
+    Optional<TlsSettings> tls = config.getTls();
+    if (tls.isEmpty()) {
+      return new ServerSocket();
+    }
+
+    SSLServerSocket socket = (SSLServerSocket) TlsContextFactory.create(tls.get(), classLoader)
+        .getServerSocketFactory()
+        .createServerSocket();
+    TlsContextFactory.restrictProtocols(socket);
+
+    return socket;
   }
 
   public int port() {
@@ -113,10 +143,11 @@ public class CheetahServer implements AutoCloseable {
           return;
         }
 
-        keepAlive = request.get().keepAlive();
-        boolean includeBody = request.get().method() != HttpMethod.HEAD;
+        HttpRequest current = request.get().withSecure(isSecure());
+        keepAlive = current.keepAlive();
+        boolean includeBody = current.method() != HttpMethod.HEAD;
 
-        writer.write(output, dispatch(request.get()), keepAlive, includeBody);
+        writer.write(output, dispatch(current), keepAlive, includeBody);
       }
     } catch (IOException e) {
       LOGGER.log(Level.FINE, "Connection closed", e);

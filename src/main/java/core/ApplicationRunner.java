@@ -77,7 +77,8 @@ public final class ApplicationRunner {
       Handler handler = new RequestScopeHandler(
           new ErrorHandlingHandler(filtered, exceptionHandlers));
 
-      CheetahServer server = new CheetahServer(config.server(), handler);
+      CheetahServer server = new CheetahServer(config.server(), handler,
+          primarySource.getClassLoader());
       server.start();
 
       Runtime.getRuntime().addShutdownHook(new Thread(() -> stop(server)));

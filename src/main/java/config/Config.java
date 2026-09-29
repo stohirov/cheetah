@@ -4,11 +4,13 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import models.Server;
+import models.TlsSettings;
 
 public final class Config {
 
   public static final String PORT_KEY = "server.port";
   public static final int DEFAULT_PORT = 8080;
+  public static final String SSL_ENABLED_KEY = "server.ssl.enabled";
 
   private final String environment;
   private final Map<String, String> properties;
@@ -50,7 +52,17 @@ public final class Config {
       throw new IllegalArgumentException("Invalid " + PORT_KEY + ": " + port);
     }
 
-    return new Server(port);
+    if (!Boolean.parseBoolean(get(SSL_ENABLED_KEY, "false"))) {
+      return new Server(port);
+    }
+
+    TlsSettings tls = new TlsSettings(
+        get("server.ssl.key-store").orElse(null),
+        get("server.ssl.key-store-password").orElse(null),
+        get("server.ssl.key-store-type", "PKCS12"),
+        get("server.ssl.key-password").orElse(null));
+
+    return new Server(port, tls);
   }
 
   public Config withOverrides(Map<String, String> overrides) {

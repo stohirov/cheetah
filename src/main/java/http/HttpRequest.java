@@ -13,11 +13,25 @@ public record HttpRequest(
     String version,
     Map<String, List<String>> queryParams,
     Map<String, String> headers,
-    byte[] body) {
+    byte[] body,
+    boolean secure) {
 
   public HttpRequest {
     queryParams = Map.copyOf(queryParams);
     headers = Map.copyOf(headers);
+  }
+
+  public HttpRequest(HttpMethod method, String path, String version,
+      Map<String, List<String>> queryParams, Map<String, String> headers, byte[] body) {
+    this(method, path, version, queryParams, headers, body, false);
+  }
+
+  public HttpRequest withSecure(boolean newSecure) {
+    return new HttpRequest(method, path, version, queryParams, headers, body, newSecure);
+  }
+
+  public String scheme() {
+    return secure ? "https" : "http";
   }
 
   public Optional<String> header(String name) {

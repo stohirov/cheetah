@@ -31,10 +31,11 @@ public class SessionFilter implements Filter {
 
     HttpResponse response = chain.next(request);
 
-    return applySession(response, holder);
+    return applySession(response, holder, secureCookie || request.secure());
   }
 
-  private HttpResponse applySession(HttpResponse response, SessionHolder holder) {
+  private HttpResponse applySession(HttpResponse response, SessionHolder holder,
+      boolean secure) {
     Session original = holder.original();
     Session current = holder.session();
 
@@ -44,7 +45,7 @@ public class SessionFilter implements Filter {
 
     boolean hasActive = current != null && !current.isInvalidated();
     if (hasActive && current != original) {
-      return response.withCookie(sessionCookie(current.id()));
+      return response.withCookie(sessionCookie(current.id(), secure));
     }
 
     if (current != null && current.isInvalidated()) {
@@ -53,16 +54,16 @@ public class SessionFilter implements Filter {
 
     boolean ended = original != null && !hasActive;
     if (ended) {
-      return response.withCookie(sessionCookie("").withMaxAge(Duration.ZERO));
+      return response.withCookie(sessionCookie("", secure).withMaxAge(Duration.ZERO));
     }
 
     return response;
   }
 
-  private Cookie sessionCookie(String value) {
+  private Cookie sessionCookie(String value, boolean secure) {
     return Cookie.of(cookieName, value)
         .withHttpOnly(true)
-        .withSecure(secureCookie)
+        .withSecure(secure)
         .withSameSite(Cookie.SameSite.LAX);
   }
 
