@@ -16,12 +16,13 @@ class ApplicationRunnerTest {
 
   @Test
   void servesScannedControllers() throws Exception {
-    try (CheetahServer server = ApplicationRunner.run(SampleApp.class, "--server.port=0")) {
+    try (CheetahServer server = ApplicationRunner.run(SampleApp.class, "--server.port=0",
+        "--greeting.prefix=Salom")) {
       HttpResponse<String> greeting = get(server, "/greetings/Cheetah");
       HttpResponse<String> hidden = get(server, "/hidden");
 
       assertEquals(200, greeting.statusCode());
-      assertEquals("{\"message\":\"Hello, Cheetah\"}", greeting.body());
+      assertEquals("{\"message\":\"Salom, Cheetah\"}", greeting.body());
       assertEquals(404, hidden.statusCode());
     }
   }

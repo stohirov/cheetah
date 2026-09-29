@@ -1,16 +1,19 @@
 package core;
 
+import annotations.Component;
 import annotations.Controller;
 import config.Config;
+import core.context.ApplicationContext;
 import core.routing.Route;
 import core.routing.Router;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.lang.reflect.Constructor;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import scanner.ClassScanner;
@@ -40,7 +43,8 @@ public final class ApplicationRunner {
       Config config = loadConfig(primarySource.getClassLoader(), environment, configDirectory)
           .withOverrides(arguments);
 
-      Router router = createRouter(primarySource);
+      ApplicationContext context = createContext(primarySource, config);
+      Router router = createRouter(context);
 
       CheetahServer server = new CheetahServer(config.server(), router);
       server.start();
@@ -81,12 +85,26 @@ public final class ApplicationRunner {
     return arguments;
   }
 
-  private static Router createRouter(Class<?> primarySource) throws IOException {
+  private static ApplicationContext createContext(Class<?> primarySource, Config config)
+      throws IOException {
     ClassScanner scanner = new ClassScanner(primarySource.getClassLoader());
+    String packageName = primarySource.getPackageName();
+
+    Set<Class<?>> componentTypes = new LinkedHashSet<>();
+    componentTypes.addAll(scanner.findAnnotated(packageName, Component.class));
+    componentTypes.addAll(scanner.findAnnotated(packageName, Controller.class));
+
+    ApplicationContext context = new ApplicationContext(config, componentTypes);
+    context.refresh();
+
+    return context;
+  }
+
+  private static Router createRouter(ApplicationContext context) {
     Router router = new Router();
 
-    for (Class<?> type : scanner.findAnnotated(primarySource.getPackageName(), Controller.class)) {
-      router.register(instantiate(type));
+    for (Object controller : context.getBeansWithAnnotation(Controller.class)) {
+      router.register(controller);
     }
 
     for (Route route : router.routes()) {
@@ -94,18 +112,6 @@ public final class ApplicationRunner {
     }
 
     return router;
-  }
-
-  private static Object instantiate(Class<?> type) {
-    try {
-      Constructor<?> constructor = type.getDeclaredConstructor();
-      constructor.setAccessible(true);
-
-      return constructor.newInstance();
-    } catch (ReflectiveOperationException e) {
-      throw new IllegalStateException(
-          "Controller " + type.getName() + " needs a no-argument constructor", e);
-    }
   }
 
   private static void stop(CheetahServer server) {
