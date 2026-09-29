@@ -21,7 +21,7 @@ class ClassScannerTest {
         .toList();
 
     assertEquals(List.of("sampleapp.api.GreetingController",
-        "sampleapp.api.RequestCounterController"), names);
+        "sampleapp.api.RequestCounterController", "sampleapp.api.VisitController"), names);
   }
 
   @Test

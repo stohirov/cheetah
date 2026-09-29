@@ -6,6 +6,8 @@ import annotations.ReqBody;
 import annotations.ReqHeader;
 import annotations.ReqParam;
 import convert.StringConverter;
+import core.session.Session;
+import core.session.SessionHolder;
 import http.HttpException;
 import http.HttpRequest;
 import http.HttpStatus;
@@ -26,6 +28,14 @@ interface ArgumentBinder {
   static ArgumentBinder forParameter(Parameter parameter, PathPattern pattern) {
     if (parameter.getType() == HttpRequest.class) {
       return (request, pathVariables) -> request;
+    }
+
+    if (parameter.getType() == Session.class) {
+      return (request, pathVariables) -> SessionHolder.current().getOrCreate();
+    }
+
+    if (isOptionalOf(parameter, Session.class)) {
+      return (request, pathVariables) -> SessionHolder.current().existing();
     }
 
     PathVariable pathVariable = parameter.getAnnotation(PathVariable.class);
@@ -130,6 +140,12 @@ interface ArgumentBinder {
             e);
       }
     };
+  }
+
+  private static boolean isOptionalOf(Parameter parameter, Class<?> type) {
+    return parameter.getType() == Optional.class
+        && parameter.getParameterizedType() instanceof ParameterizedType parameterized
+        && parameterized.getActualTypeArguments()[0] == type;
   }
 
   private static Object convert(String value, Class<?> type, String description) {

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.net.CookieManager;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -35,6 +36,25 @@ class ApplicationRunnerTest {
 
       assertTrue(first.endsWith(":/instance"));
       assertNotEquals(first, second);
+    }
+  }
+
+  @Test
+  void keepsSessionsAcrossRequests() throws Exception {
+    HttpClient browser = HttpClient.newBuilder().cookieHandler(new CookieManager()).build();
+
+    try (CheetahServer server = ApplicationRunner.run(SampleApp.class, "--server.port=0")) {
+      URI visits = URI.create("http://localhost:" + server.port() + "/visits");
+
+      assertEquals("1", browser.send(HttpRequest.newBuilder(visits).build(),
+          BodyHandlers.ofString()).body());
+      assertEquals("2", browser.send(HttpRequest.newBuilder(visits).build(),
+          BodyHandlers.ofString()).body());
+
+      browser.send(HttpRequest.newBuilder(visits).DELETE().build(), BodyHandlers.ofString());
+
+      assertEquals("1", browser.send(HttpRequest.newBuilder(visits).build(),
+          BodyHandlers.ofString()).body());
     }
   }
 
